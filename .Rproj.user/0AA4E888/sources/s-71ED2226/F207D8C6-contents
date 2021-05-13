@@ -37,40 +37,77 @@ ggplot(sp500, aes(x=change, y=intraday_change*sign(change))) +
   theme_bw()
 
 ggplot(sp500, aes(x=change)) + 
-  geom_freqpoly() +
+  geom_density() +
   theme_bw()
 
 ggplot(sp500, aes(x=intraday_change)) + 
-  geom_freqpoly() +
+  geom_density() +
   theme_bw()
 
+# It is unlikely to see any drop larger than 10% day-to-day
+# It is unlikely to see an intra-day drop larger than 10%
+# Setting a trailing stop loss to 10% could safely allow for normal fluctuation
+# This would cut losses only during a crash or prolonged bear market
+# However, with a stop loss, it can be difficult to know when to re-enter the market
+
+# Note, this trailing stop loss will need to be multiplied by the leverage for leveraged ETFs
+# e.g. for TQQQ (which has a 3x leverage),
+# if you want to persist until the market declines 10%,
+# then set the trailing stop loss to 30%
+
+# Because re-entering the market is challenging, I do not add stop losses to the model
+# Additionally, the model assumes daily changes are independent
+# In reality, the change in one day may affect the change in the next
+# Test this with a linear regression
 
 ### Simulation
 start <- 100
 num_it <- nrow(sp500)
-num_sim <- 10
+num_sim <- 20
 leverages <- c(1, 2, 3)
 
 library(progress)
 pb <- progress_bar$new(
   format = "  simulating [:bar] :current/:total (:percent) | eta: :eta",
-  total = num_it*num_sim*length(leverages), clear = FALSE, width= 60)
+  total = num_it*num_sim, clear = FALSE, width= 60)
 
 sim <- as.data.frame(NULL)
 for(i in 1:num_sim){
-  price <- start
+  prices <- rep(start, length(leverages))
+  change <- 0
   for(j in 1:num_it){
-    for(k in leverages){
-      pb$tick()
-      sim <- rbind(sim, c(price, j, i, k))
-      price <- price*(1+k*sample(sp500$change, 1))
-    }
+    sim <- rbind(sim, c(prices, j, i, change))
+    change <- sample(sp500$change, 1)
+    prices <- prices*(1+leverages*change)
+    pb$tick()
   }
 }
 
-colnames(sim) <- c("price", "time", "chain", "leverage")
+colnames(sim) <- c("1", "2", "3", "day", "chain", "change")
 
-ggplot(sim, aes(x = time, y = price, color = as.factor(chain))) + 
-  geom_line() + 
+sim$divergence <- (sim$`3` - sim$`1`) / sim$`1`
+
+ggplot(sim, aes(x = day, y = divergence, color = as.factor(chain))) + 
+  geom_smooth() + 
   theme_bw()
 
+write.csv(sim, "simulated_data.csv", quote = F, row.names = F)
+
+# Is the divergence proportional to the average change?
+# Or is the divergence proportional to the average sign(change)?
+
+
+library(reshape2)
+sim <- melt(sim, measure.vars = c("1", "2", "3"), variable.name = "leverage")
+
+ggplot(sim, aes(x = day, y = value, color = as.factor(chain))) + 
+  geom_smooth() + 
+  facet_wrap(~leverage) +
+  theme_bw() +
+  scale_y_log10()
+
+ggplot(sim, aes(x = day, y = value, color = as.factor(chain))) + 
+  geom_smooth() + 
+  facet_wrap(~leverage) +
+  theme_bw() +
+  scale_y_log10()
