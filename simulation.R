@@ -46,17 +46,22 @@ ggplot(sp500, aes(x=intraday_change)) +
 
 
 ### Simulation
-
 start <- 100
 num_it <- nrow(sp500)
 num_sim <- 10
 leverages <- c(1, 2, 3)
+
+library(progress)
+pb <- progress_bar$new(
+  format = "  simulating [:bar] :current/:total (:percent) | eta: :eta",
+  total = num_it*num_sim*length(leverages), clear = FALSE, width= 60)
 
 sim <- as.data.frame(NULL)
 for(i in 1:num_sim){
   price <- start
   for(j in 1:num_it){
     for(k in leverages){
+      pb$tick()
       sim <- rbind(sim, c(price, j, i, k))
       price <- price*(1+k*sample(sp500$change, 1))
     }
