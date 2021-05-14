@@ -91,8 +91,8 @@ for(i in 1:num_sim){
   colnames(chain) <- c("chain", "day", "change", "1", "2", "3")
   sim <- rbind(sim, chain)
 }
-sim$divergence3 <- (sim$`3` - sim$`1`) / sim$`1`
-sim$divergence2 <- (sim$`2` - sim$`1`) / sim$`1`
+sim$divergence3 <- (sim$l3 - sim$l1) / sim$l1
+sim$divergence2 <- (sim$l2 - sim$l1) / sim$l1
 
 ggplot(sim, aes(x = day, y = divergence3, color = as.factor(chain))) + 
   geom_smooth() + 
@@ -108,7 +108,7 @@ write.csv(sim, "simulated_data.csv", quote = F, row.names = F)
 # Or is the divergence proportional to the average sign(change)?
 
 
-sim <- melt(sim, measure.vars = c("1", "2", "3"), variable.name = "leverage")
+sim <- melt(sim, measure.vars = c("l1", "l2", "l3"), variable.name = "leverage")
 
 ggplot(sim, aes(x = day, y = value, color = as.factor(chain))) + 
   geom_smooth() + 
@@ -140,12 +140,12 @@ for(i in 1:num_sim){
     chain <- cbind(chain, start * lev)
     pb$tick()
   }
-  colnames(chain) <- c("chain", "1", "2", "3")
+  colnames(chain) <- c("chain", "l1", "l2", "l3")
   sim <- rbind(sim, chain)
 }
 
-sim$divergence3 <- (sim$`3` - sim$`1`) / sim$`1`
-sim$divergence2 <- (sim$`2` - sim$`1`) / sim$`1`
+sim$divergence3 <- (sim$l3 - sim$l1) / sim$l1
+sim$divergence2 <- (sim$l2 - sim$l1) / sim$l1
 write.csv(sim, "simulated_endpoints.csv", quote = F, row.names = F)
 
 
@@ -162,7 +162,10 @@ quantile(sim$divergence2)
 quantile(sim$divergence3)
 mean(sim$divergence2 > 0)
 mean(sim$divergence3 > 0)
-mean(sim$`2` < sim$`3`)
+mean(sim$l2 < sim$l3)
+mean(sim$l1 < start)
+
+mean(sp500$change>0)
 
 # it seems to be a safer bet to go for 2x leverage, rather than 3x leverage
 # best strategy is probably a mix of both for a high-risk portfolio
