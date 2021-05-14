@@ -18,6 +18,8 @@ sp500$intraday_change <- (sp500$high - sp500$low) / sp500$high
 
 library(ggplot2)
 library(viridis)
+library(reshape2)
+library(progress)
 
 # plot past 30 years of S&P 500
 ggplot(sp500, aes(x=date, y=close)) + 
@@ -62,32 +64,41 @@ ggplot(sp500, aes(x=intraday_change)) +
 
 ### Simulation
 start <- 100
-num_it <- nrow(sp500)
-num_sim <- 20
+num_days <- nrow(sp500)
+num_sim <- 10
 leverages <- c(1, 2, 3)
 
-library(progress)
-pb <- progress_bar$new(
-  format = "  simulating [:bar] :current/:total (:percent) | eta: :eta",
-  total = num_it*num_sim, clear = FALSE, width= 60)
-
-sim <- as.data.frame(NULL)
-for(i in 1:num_sim){
-  prices <- rep(start, length(leverages))
-  change <- 0
-  for(j in 1:num_it){
-    sim <- rbind(sim, c(prices, j, i, change))
-    change <- sample(sp500$change, 1)
-    prices <- prices*(1+leverages*change)
-    pb$tick()
-  }
+day_n <- function(N, change, leverage){
+  leveraged_change <- 1 + leverage * change[1: N]
+  return(prod(leveraged_change))
 }
 
-colnames(sim) <- c("1", "2", "3", "day", "chain", "change")
+# every day
+pb <- progress_bar$new(
+  format = "  simulating [:bar] :current/:total (:percent) | eta: :eta",
+  total = length(leverages)*num_sim, clear = FALSE, width= 60)
 
-sim$divergence <- (sim$`3` - sim$`1`) / sim$`1`
+sim <- as.data.frame(NULL)
 
-ggplot(sim, aes(x = day, y = divergence, color = as.factor(chain))) + 
+for(i in 1:num_sim){
+  change <- sample(sp500$change, num_days, replace = T)
+  chain <- as.data.frame(cbind(i, 1:num_days, change))
+  for(L in leverages){
+    lev <- sapply(1: num_days, day_n, change = chain$change, leverage = L)
+    chain <- cbind(chain, start * lev)
+    pb$tick()
+  }
+  colnames(chain) <- c("chain", "day", "change", "1", "2", "3")
+  sim <- rbind(sim, chain)
+}
+sim$divergence3 <- (sim$`3` - sim$`1`) / sim$`1`
+sim$divergence2 <- (sim$`2` - sim$`1`) / sim$`1`
+
+ggplot(sim, aes(x = day, y = divergence3, color = as.factor(chain))) + 
+  geom_smooth() + 
+  theme_bw()
+
+ggplot(sim, aes(x = day, y = divergence2, color = as.factor(chain))) + 
   geom_smooth() + 
   theme_bw()
 
@@ -97,7 +108,6 @@ write.csv(sim, "simulated_data.csv", quote = F, row.names = F)
 # Or is the divergence proportional to the average sign(change)?
 
 
-library(reshape2)
 sim <- melt(sim, measure.vars = c("1", "2", "3"), variable.name = "leverage")
 
 ggplot(sim, aes(x = day, y = value, color = as.factor(chain))) + 
@@ -107,7 +117,54 @@ ggplot(sim, aes(x = day, y = value, color = as.factor(chain))) +
   scale_y_log10()
 
 ggplot(sim, aes(x = day, y = value, color = as.factor(chain))) + 
-  geom_smooth() + 
+  #geom_smooth() + 
+  geom_line() +
   facet_wrap(~leverage) +
   theme_bw() +
   scale_y_log10()
+
+
+# only beginning-end change
+num_sim <- 1e5
+pb <- progress_bar$new(
+  format = "  simulating [:bar] :current/:total (:percent) | eta: :eta",
+  total = length(leverages)*num_sim, clear = FALSE, width= 60)
+
+sim <- as.data.frame(NULL)
+
+for(i in 1:num_sim){
+  change <- sample(sp500$change, num_days, replace = T)
+  chain <- as.data.frame(i)
+  for(L in leverages){
+    lev <- day_n(num_days, change, L)
+    chain <- cbind(chain, start * lev)
+    pb$tick()
+  }
+  colnames(chain) <- c("chain", "1", "2", "3")
+  sim <- rbind(sim, chain)
+}
+
+sim$divergence3 <- (sim$`3` - sim$`1`) / sim$`1`
+sim$divergence2 <- (sim$`2` - sim$`1`) / sim$`1`
+write.csv(sim, "simulated_endpoints.csv", quote = F, row.names = F)
+
+
+
+ggplot(sim, aes(y=divergence2)) + 
+  geom_boxplot(outlier.shape = NA) +
+  theme_bw()
+
+ggplot(sim, aes(y=divergence3)) + 
+  geom_boxplot(outlier.shape = NA) +
+  theme_bw()
+
+quantile(sim$divergence2)
+quantile(sim$divergence3)
+mean(sim$divergence2 > 0)
+mean(sim$divergence3 > 0)
+mean(sim$`2` < sim$`3`)
+
+# it seems to be a safer bet to go for 2x leverage, rather than 3x leverage
+# best strategy is probably a mix of both for a high-risk portfolio
+
+# check these probabilities for different time lengths?
