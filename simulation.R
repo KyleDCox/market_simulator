@@ -10,7 +10,7 @@ sp500 <- janitor::clean_names(sp500)
 
 sp500$date <- lubridate::mdy(sp500$date)
 
-prev_day <- c(sp500$close[2:nrow(sp500)], 1)
+prev_day <- c(NA, sp500$close[1: (nrow(sp500) - 1)])
 
 sp500$change <- (sp500$close - prev_day) / prev_day
 sp500 <- sp500[1:(nrow(sp500) - 1), ]
