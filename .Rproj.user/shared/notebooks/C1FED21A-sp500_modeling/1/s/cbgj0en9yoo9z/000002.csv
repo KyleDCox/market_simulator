@@ -1,0 +1,3 @@
+"0","sp500 <- janitor::clean_names(sp500)"
+"0","sp500$date <- lubridate::mdy(sp500$date)"
+"0",""

@@ -1,0 +1,7 @@
+"0","rfFit1 <- train(Y ~ ., data = training,
+                method = ""ranger"", 
+                trControl = fitControl)
+"
+"2","model fit failed for Fold04.Rep02: mtry=29, min.node.size=5, splitrule=variance Error in ranger::ranger(dependent.variable.name = "".outcome"", data = x,  : 
+  User interrupt or internal error.
+"
