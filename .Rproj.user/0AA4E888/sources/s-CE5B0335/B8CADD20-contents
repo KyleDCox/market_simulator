@@ -1,0 +1,160 @@
+---
+title: "S&P500 Modeling"
+author: "Kyle Cox"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    toc: true
+    toc_collapsed: true
+toc_depth: 3
+number_sections: true
+---
+# Overview  
+
+<i><b>Note</b></i>: I am not a financial advisor. This document contains 
+analysis on financial data, and it examines a risky investment strategy. 
+Specifically, we are addressing the statement, "If you’re a retail investor or a long-term investor, steer clear of leveraged ETFs. Generally designed for short-term (daily) plays on an index or sector, they should be used that way, otherwise, they will eat away at your capital in more ways than one, including fees, rebalancing, and compounding losses." ([investopedia](https://www.investopedia.com/articles/financial-advisors/082515/why-leveraged-etfs-are-not-longterm-bet.asp))  
+
+The argument is that in a stagnant or highly volatile market, leveraged ETFs 
+will underperform their related market indicators. To test this, I simulate 
+market conditions over long time periods and compare the performance of 2x and 
+3x leveraged ETFs to their underlying indicators.  
+
+In this analysis, we focus on the S&P500, a broadly accepted indicator of 
+the US market. It is commonplace for long-term investors to buy and hold ETFs 
+that track the S&P500 in a 1:1 ratio (e.g. [SPY](https://finance.yahoo.com/quote/SPY) and [VOO](https://finance.yahoo.com/quote/VOO)).  
+I compare this strategy to long-term holding [SSO](https://finance.yahoo.com/quote/SSO) and [UPRO](https://finance.yahoo.com/quote/UPRO?p=UPRO). 
+The ETFs SSO and UPRO track the S&P500 with 2x and 3x leverage, respectively.
+
+It is important to understand that leveraged ETFs only track daily changes, not 
+long-term changes. Within a single day, a leveraged ETF should reliably change 
+by the same percentage as its indicator, multiplied by the leverage. If the 
+S&P500 increases 1% in a single day, then SSO and UPRO should increase 2% and 
+3%, respectively.
+
+Note: Historical data were collected after markets closed on July 26, 2021.  
+
+## Analytical Questions
+ - Can we predict day-to-day movements in the S&P500?
+ - How well do SPY and VOO track the S&P500?
+ - How well do SSO and UPRO track the S&P500?
+ - Which strategy generates higher return: long-term holding leveraged ETFs or non-leveraged ETFs?
+ 
+
+```{r Rmd setup, echo=F}
+knitr::opts_chunk$set(echo = F, message = F, error = F, warning = F)
+options(digits = 8)
+
+```
+
+```{r packages}
+library(prettydoc)
+library(ggplot2)
+library(viridis)
+library(reshape2)
+library(ggcorrplot)
+library(caret)
+library(dplyr)
+library(stock.helpr) # Available here: https://github.com/KyleDCox/stock.helpr
+```
+
+## Exploratory data analysis
+```{r load data}
+sp500 <- import_yfinance_file("../data/GSPC.csv")
+```
+
+```{r eda}
+ggplot(sp500, aes(x = change))+
+  geom_histogram(binwidth = 0.001)+
+  theme_bw()+
+  ggtitle("Daily Changes (%)", "SP500: 1991-03-27 to 2021-07-26")
+```  
+
+Seen above, daily changes (%) in the S&P500 are seemingly normally distributed. 
+However, upon consideration, this likely comprises two random variables: the 
+absolute % change, and the direction (&#177;). Interestingly, in our dataset, 
+there were only four days in which the S&P500 changed exactly 0% from the 
+previous day. Because of this, we can comfortably assume the magnitude of daily 
+change follows a gamma distribution. 
+
+```{r eda2}
+ggplot(sp500, aes(x = abs(change)))+
+  geom_freqpoly(binwidth = 0.001, aes(color = as.factor(sign(change))))+
+  ggtitle("Daily Changes (%)", "SP500: 1991-03-27 to 2021-07-26")+
+  theme_bw()
+DT::datatable(as.data.frame(table(sign(sp500$change))))
+```  
+
+Do the positive and negative changes come from different distributions?
+```{r eda3}
+positive_days <- abs(filter(sp500, change > 0)$change)
+negative_days <- abs(filter(sp500, change < 0)$change)
+
+t.test(positive_days, negative_days)
+fitdistrplus::fitdist(positive_days, "gamma")
+fitdistrplus::fitdist(negative_days, "gamma")
+
+```
+
+## Can we predict day-to-day movements in the S&P500?
+```{r correlation}
+sp500_num <- sp500; sp500_num$date <- NULL
+X <- sp500_num[1: (nrow(sp500_num) - 1), ]
+Y <- sp500_num$change[2: nrow(sp500_num)]
+
+dat <- cbind(X, Y)
+
+colnames(dat)[36] <- "next_change"
+dat_cor <- cor(dat)
+ggcorrplot(dat_cor)
+```
+#### Random Forest
+Let us try using a random forest model to predict tomorrow's price change.
+```{r random forest, eval = F}
+set.seed(73)
+inTraining <- createDataPartition(dat$next_change, p = 0.8, list = F)
+training <- dat[inTraining, ]
+training <- dat[inTraining, ]
+testing <- dat[-inTraining, ]
+
+set.seed(730)
+fitControl <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
+
+rfFit <- train(next_change ~ ., data = training,
+                method = "ranger", 
+                trControl = fitControl)
+
+rfFit
+plot(varImp(rfFit, scale=F, useModel = F))
+```
+
+```{r xgboost, eval = F}
+# need to fix this function, specify objective function
+xgbFit <- train(next_change ~ ., data = training,
+                method = "xgbTree", 
+                trControl = fitControl,
+                objective = "reg:squarederror")
+xgbFit
+plot(varImp(xgbFit, scale=F, useModel = F))
+```
+
+```{r save, eval = F}
+save(c(dat, rfFit, xgbFit), file = "output.Rda")
+```
+
+## How well does a leveraged ETF track its market indicator?  
+[UPRO](https://finance.yahoo.com/quote/UPRO?p=UPRO) is a 3x leveraged ETF that tracks the S&P500. Its historical range extends
+to 2009 and is sourced from [Yahoo! Finance](https://finance.yahoo.com/quote/UPRO/history?p=UPRO)
+```{r load leverages, eval = F}
+sso <- read.csv("SSO.csv")
+upro <- read.csv("UPRO.csv")
+```
+
+```{r clean leverages, eval = F}
+sso <- janitor::clean_names(sso)
+sso$date <- lubridate::mdy(sso$date)
+upro <- janitor::clean_names(upro)
+upro$date <- lubridate::mdy(upro$date)
+```

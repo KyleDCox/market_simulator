@@ -1,0 +1,17 @@
+#' calculates the moving average of a numeric vector
+#'
+#' @param DAYS the number of days used to calculate the moving average
+#' @param SERIES a numeric vector
+#'
+#' @return numeric
+
+moving_average <- function(DAYS, SERIES){
+  total <- length(SERIES)
+  ma <- rep(NA, total)
+  ma_len <- DAYS - 1
+  for(i in DAYS: total){
+    ma[i] <- mean(SERIES[(i - ma_len): i], na.rm = T)
+  }
+  return(ma)
+}
+

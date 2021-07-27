@@ -1,0 +1,3 @@
+"2","model fit failed for Fold06.Rep01: mtry=35, min.node.size=5, splitrule=extratrees Error in ranger::ranger(dependent.variable.name = "".outcome"", data = x,  : 
+  User interrupt or internal error.
+"

@@ -1,0 +1,180 @@
+---
+title: "S&P500 Modeling"
+author: "Kyle Cox"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    toc: true
+    toc_collapsed: true
+toc_depth: 3
+number_sections: true
+---
+# Overview  
+
+<i><b>Note</b></i>: I am not a financial advisor. This document contains 
+analysis on financial data, and it examines a risky investment strategy. 
+Specifically, we are addressing the statement, "If you’re a retail investor or a long-term investor, steer clear of leveraged ETFs. Generally designed for short-term (daily) plays on an index or sector, they should be used that way, otherwise, they will eat away at your capital in more ways than one, including fees, rebalancing, and compounding losses." ([investopedia](https://www.investopedia.com/articles/financial-advisors/082515/why-leveraged-etfs-are-not-longterm-bet.asp))  
+
+The argument is that in a stagnant or highly volatile market, leveraged ETFs 
+will underperform their related market indicators. To test this, I simulate 
+market conditions over long time periods and compare the performance of 2x and 
+3x leveraged ETFs to their underlying indicators.  
+
+In this analysis, we focus on the S&P500, a broadly accepted indicator of 
+the US market. It is commonplace for long-term investors to buy and hold ETFs 
+that track the S&P500 in a 1:1 ratio (e.g. [SPY](https://finance.yahoo.com/quote/SPY) and [VOO](https://finance.yahoo.com/quote/VOO)).  
+I compare this strategy to long-term holding [SSO](https://finance.yahoo.com/quote/SSO) and [UPRO](https://finance.yahoo.com/quote/UPRO?p=UPRO). 
+The ETFs SSO and UPRO track the S&P500 with 2x and 3x leverage, respectively.
+
+It is important to understand that leveraged ETFs only track daily changes, not 
+long-term changes. Within a single day, a leveraged ETF should reliably change 
+by the same percentage as its indicator, multiplied by the leverage. If the 
+S&P500 increases 1% in a single day, then SSO and UPRO should increase 2% and 
+3%, respectively.
+
+Note: Historical data were collected after markets closed on July 26, 2021.  
+
+## Analytical Questions
+ - Can we predict day-to-day movements in the S&P500?
+ - How well do SPY and VOO track the S&P500?
+ - How well do SSO and UPRO track the S&P500?
+ - Which strategy generates higher return: long-term holding leveraged ETFs or non-leveraged ETFs?
+ 
+
+```{r Rmd setup, echo=F}
+knitr::opts_chunk$set(echo = F, message = F, error = F)
+options(digits = 8)
+
+```
+
+```{r packages}
+library(prettydoc)
+library(ggplot2)
+library(viridis)
+library(reshape2)
+library(ggcorrplot)
+library(caret)
+library(stock.helpr) # Available here: https://github.com/KyleDCox/stock.helpr
+```
+
+## Can we predict day-to-day movements in the S&P500?
+```{r load data}
+sp500 <- read.csv("HistoricalPrices.csv")
+```
+
+```{r clean data}
+sp500 <- janitor::clean_names(sp500)
+sp500$date <- lubridate::mdy(sp500$date)
+```
+
+```{r modify data}
+prev_day <- c(NA, sp500$close[1: (nrow(sp500) - 1)])
+
+sp500$close_previous <- prev_day
+sp500 <- na.omit(sp500)
+
+sp500$change <- (sp500$close - sp500$close_previous) / sp500$close_previous
+sp500$intraday_change <- (sp500$high - sp500$low) / sp500$high
+
+sp500$ma5 <- moving_average(5, sp500$close)
+sp500$ma8 <- moving_average(8, sp500$close)
+sp500$ma13 <- moving_average(13, sp500$close)
+
+sp500 <- cbind(sp500, macd(12, 26, 9, sp500$close))
+
+
+sp500$rsi10 <- rsi(10, sp500$change)
+
+# try adding derivatives
+# first derivs
+sp500$change_prime <- derivative(sp500$change)
+sp500$intraday_change_prime <- derivative(sp500$intraday_change)
+sp500$ma5_prime <- derivative(sp500$ma5)
+sp500$ma8_prime <- derivative(sp500$ma8)
+sp500$ma13_prime <- derivative(sp500$ma13)
+sp500$rsi10_prime <- derivative(sp500$rsi10)
+sp500$macd_prime <- derivative(sp500$macd)
+sp500$macd_signal_prime <- derivative(sp500$macd_signal)
+
+# second derivs
+sp500$change_prime2 <- derivative(sp500$change_prime)
+sp500$intraday_change_prime2 <- derivative(sp500$intraday_change_prime)
+sp500$ma5_prime2 <- derivative(sp500$ma5_prime)
+sp500$ma8_prime2 <- derivative(sp500$ma8_prime)
+sp500$ma13_prime2 <- derivative(sp500$ma13_prime)
+sp500$rsi10_prime2 <- derivative(sp500$rsi10_prime)
+sp500$macd_prime2 <- derivative(sp500$macd_prime)
+sp500$macd_signal_prime2 <- derivative(sp500$macd_signal_prime)
+
+
+# logical comparisons
+sp500$macd_greater <- as.numeric(sp500$macd > sp500$macd_signal)
+sp500$ma5g8 <- as.numeric(sp500$ma5 > sp500$ma8)
+sp500$ma5g13 <- as.numeric(sp500$ma5 > sp500$ma13)
+sp500$ma8g13 <- as.numeric(sp500$ma8 > sp500$ma13)
+sp500$rsi10_over <- as.numeric(sp500$rsi10 > 70)
+sp500$rsi10_under <- as.numeric(sp500$rsi10 < 30)
+
+
+sp500 <- na.omit(sp500)
+```
+
+```{r correlation}
+sp500_num <- sp500; sp500_num$date <- NULL
+X <- sp500_num[1: (nrow(sp500_num) - 1), ]
+Y <- sp500_num$change[2: nrow(sp500_num)]
+
+dat <- cbind(X, Y)
+
+dat_cor <- cor(dat)
+ggcorrplot(dat_cor)
+```
+
+```{r random forest}
+set.seed(73)
+inTraining <- createDataPartition(dat$Y, p = 0.8, list = F)
+training <- dat[inTraining, ]
+training <- dat[inTraining, ]
+testing <- dat[-inTraining, ]
+
+set.seed(730)
+fitControl <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
+
+rfFit <- train(Y ~ ., data = training,
+                method = "ranger", 
+                trControl = fitControl)
+
+rfFit
+plot(varImp(rfFit, scale=F, useModel = F))
+```
+
+```{r xgboost}
+# need to fix this function, specify objective function
+xgbFit <- train(Y ~ ., data = training,
+                method = "xgbTree", 
+                trControl = fitControl,
+                objective = "reg:squarederror")
+xgbFit
+plot(varImp(xgbFit, scale=F, useModel = F))
+```
+
+```{r save}
+save(c(dat, rfFit, xgbFit), file = "output.Rda")
+```
+
+## How well does a leveraged ETF track its market indicator?  
+[UPRO](https://finance.yahoo.com/quote/UPRO?p=UPRO) is a 3x leveraged ETF that tracks the S&P500. Its historical range extends
+to 2009 and is sourced from [Yahoo! Finance](https://finance.yahoo.com/quote/UPRO/history?p=UPRO)
+```{r load leverages}
+sso <- read.csv("SSO.csv")
+upro <- read.csv("UPRO.csv")
+```
+
+```{r clean leverages}
+sso <- janitor::clean_names(sso)
+sso$date <- lubridate::mdy(sso$date)
+upro <- janitor::clean_names(upro)
+upro$date <- lubridate::mdy(upro$date)
+```

@@ -1,0 +1,15 @@
+"0","set.seed(73)"
+"0","inTraining <- createDataPartition(dat$next_change, p = 0.8, list = F)"
+"0","training <- dat[inTraining, ]"
+"0","training <- dat[inTraining, ]"
+"0","testing <- dat[-inTraining, ]"
+"0",""
+"0","set.seed(730)"
+"0","fitControl <- trainControl(method = ""repeatedcv"", number = 10, repeats = 10)"
+"0",""
+"0","rfFit <- train(next_change ~ ., data = training,"
+"0","                method = ""ranger"", "
+"0","                trControl = fitControl)"
+"2","model fit failed for Fold06.Rep01: mtry=35, min.node.size=5, splitrule=variance Error in ranger::ranger(dependent.variable.name = "".outcome"", data = x,  : 
+  User interrupt or internal error.
+"

@@ -1,0 +1,57 @@
+import_yfinance_file <- function(FILE){
+  data <- read.csv("FILE")
+
+  data <- janitor::clean_names(data)
+  data$date <- lubridate::mdy(data$date)
+
+  prev_day <- c(NA, data$close[1: (nrow(data) - 1)])
+  
+  data$close_previous <- prev_day
+  data <- na.omit(data)
+  
+  data$change <- (data$close - data$close_previous) / data$close_previous
+  data$intraday_change <- (data$high - data$low) / data$high
+  
+  data$ma5 <- moving_average(5, data$close)
+  data$ma8 <- moving_average(8, data$close)
+  data$ma13 <- moving_average(13, data$close)
+  
+  data <- cbind(data, macd(12, 26, 9, data$close))
+  
+  
+  data$rsi10 <- rsi(10, data$change)
+  
+  # try adding derivatives
+  # first derivs
+  data$change_prime <- derivative(data$change)
+  data$intraday_change_prime <- derivative(data$intraday_change)
+  data$ma5_prime <- derivative(data$ma5)
+  data$ma8_prime <- derivative(data$ma8)
+  data$ma13_prime <- derivative(data$ma13)
+  data$rsi10_prime <- derivative(data$rsi10)
+  data$macd_prime <- derivative(data$macd)
+  data$macd_signal_prime <- derivative(data$macd_signal)
+  
+  # second derivs
+  data$change_prime2 <- derivative(data$change_prime)
+  data$intraday_change_prime2 <- derivative(data$intraday_change_prime)
+  data$ma5_prime2 <- derivative(data$ma5_prime)
+  data$ma8_prime2 <- derivative(data$ma8_prime)
+  data$ma13_prime2 <- derivative(data$ma13_prime)
+  data$rsi10_prime2 <- derivative(data$rsi10_prime)
+  data$macd_prime2 <- derivative(data$macd_prime)
+  data$macd_signal_prime2 <- derivative(data$macd_signal_prime)
+  
+  
+  # logical comparisons
+  data$macd_greater <- as.numeric(data$macd > data$macd_signal)
+  data$ma5g8 <- as.numeric(data$ma5 > data$ma8)
+  data$ma5g13 <- as.numeric(data$ma5 > data$ma13)
+  data$ma8g13 <- as.numeric(data$ma8 > data$ma13)
+  data$rsi10_over <- as.numeric(data$rsi10 > 70)
+  data$rsi10_under <- as.numeric(data$rsi10 < 30)
+  
+  
+  data <- na.omit(data)
+
+}

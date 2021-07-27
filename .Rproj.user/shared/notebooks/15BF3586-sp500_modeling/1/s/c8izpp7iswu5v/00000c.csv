@@ -1,0 +1,7 @@
+"2","model fit failed for Fold08.Rep01: mtry=35, min.node.size=5, splitrule=variance Error in ranger::ranger(dependent.variable.name = "".outcome"", data = x,  : 
+  User interrupt or internal error.
+"
+"1","
+Restarting R session...
+
+"

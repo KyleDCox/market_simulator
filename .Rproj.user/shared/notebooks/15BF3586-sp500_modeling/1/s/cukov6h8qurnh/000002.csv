@@ -1,0 +1,8 @@
+"0","sp500_num <- sp500; sp500_num$date <- NULL"
+"0","X <- sp500_num[1: (nrow(sp500_num) - 1), ]"
+"0","Y <- sp500_num$change[2: nrow(sp500_num)]"
+"0",""
+"0","dat <- cbind(X, Y)"
+"0",""
+"0","dat_cor <- cor(dat)"
+"0","ggcorrplot(dat_cor)"

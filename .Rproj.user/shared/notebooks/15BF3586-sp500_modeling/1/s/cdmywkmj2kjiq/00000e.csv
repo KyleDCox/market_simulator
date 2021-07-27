@@ -1,0 +1,42 @@
+"0","fitdistrplus::fitdist(negative_days, ""gamma"")
+"
+"1","$start.arg
+"
+"1","$start.arg$shape
+"
+"1","[1]"
+"1"," 0.80490655"
+"1","
+"
+"1","
+"
+"1","$start.arg$rate
+"
+"1","[1]"
+"1"," 108.84596"
+"1","
+"
+"1","
+"
+"1","
+"
+"1","$fix.arg
+"
+"1","NULL
+"
+"1","
+"
+"2","NaNs produced"
+"2","NaNs produced"
+"2","NaNs produced"
+"2","NaNs produced"
+"2","NaNs produced"
+"2","NaNs produced"
+"1","Fitting of the distribution '"
+"1"," "
+"1","gamma"
+"1"," "
+"1","' by maximum likelihood 
+"
+"1","Parameters:
+"
